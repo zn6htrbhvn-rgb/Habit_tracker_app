@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ZenHabit</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <div class="header-titles">
+        <h1>ZenHabit</h1>
+        <p id="date-display" class="date-display"></p>
+      </div>
+      <div class="streak-pill">
+        <i data-lucide="flame" class="icon-flame"></i>
+        <span id="global-streak">0</span>
+      </div>
+    </header>
+
+    <section class="progress-section">
+      <div class="progress-top">
+        <span class="progress-label">Daily Completion</span>
+        <span class="progress-percent" id="progress-percent">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-bottom">
+        <span id="progress-count">0 OF 0 COMPLETED</span>
+        <span id="progress-message">ADD A HABIT</span>
+      </div>
+    </section>
+
+    <section class="action-section">
+      <h2>Habit Sections</h2>
+      <button id="btn-add-habit" class="btn-primary">
+        <i data-lucide="plus"></i> New Habit
+      </button>
+    </section>
+
+    <div id="add-panel" class="add-panel hidden">
+      <div class="form-group">
+        <label>Habit Name</label>
+        <input type="text" id="habit-name" placeholder="e.g. Read Physics">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group half">
+          <label>Time Window</label>
+          <div class="time-selector" id="time-selector">
+            <button class="time-btn active" data-time="morning">
+              <i data-lucide="sun"></i><br>MORNING
+            </button>
+            <button class="time-btn" data-time="afternoon">
+              <i data-lucide="cloud"></i><br>AFTERNOON
+            </button>
+            <button class="time-btn" data-time="evening">
+              <i data-lucide="moon"></i><br>EVENING
+            </button>
+          </div>
+        </div>
+        <div class="form-group half">
+          <label>Accent Color</label>
+          <div class="color-selector" id="color-selector">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Icon Representation</label>
+        <div class="icon-selector" id="icon-selector">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="panel-actions">
+        <button id="btn-confirm-add" class="btn-primary" style="flex:1;">Confirm Entry</button>
+        <button id="btn-cancel-add" class="btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="habits-container" class="habits-container">
+      <!-- Habit Sections Populated by JS -->
+    </div>
+
+    <section class="heatmap-section pt-12">
+      <div class="heatmap-header">
+        <h2>Velocity Visualizer</h2>
+        <div class="heatmap-legend">
+          <div class="l-0"></div><div class="l-1"></div><div class="l-2"></div><div class="l-3"></div><div class="l-4"></div>
+        </div>
+      </div>
+      <div id="heatmap-grid" class="heatmap-grid">
+        <!-- Heatmap cells -->
+      </div>
+      <div class="heatmap-labels">
+        <span>90 DAYS AGO</span>
+        <span>PEAK FLOW</span>
+        <span>TODAY</span>
+      </div>
+    </section>
+  </div>
+
+  <script src="./script.js" type="module"></script>
+</body>
+</html>
