@@ -2,108 +2,203 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ZenHabit</title>
+  <meta name="description" content="A calm little habit tracker.">
+  <meta name="theme-color" content="#F6F3EE" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171513" media="(prefers-color-scheme: dark)">
+  <script>
+    // Apply saved theme before first paint (avoids a light/dark flash).
+    try {
+      var t = localStorage.getItem('zenhabit_theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="./style.css">
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
   <div class="app-container">
+
+    <!-- Header -->
     <header class="header">
       <div class="header-titles">
         <h1>ZenHabit</h1>
         <p id="date-display" class="date-display"></p>
       </div>
-      <div class="streak-pill">
-        <i data-lucide="flame" class="icon-flame"></i>
-        <span id="global-streak">0</span>
+      <div class="header-actions">
+        <button id="btn-theme" class="icon-button" type="button" aria-label="Toggle light and dark mode">
+          <i data-lucide="moon" class="theme-icon-moon"></i>
+          <i data-lucide="sun" class="theme-icon-sun"></i>
+        </button>
+        <div class="streak-pill" id="streak-pill" title="Days in a row with every habit done">
+          <i data-lucide="flame" class="icon-flame"></i>
+          <span id="global-streak">0</span>
+          <span class="visually-hidden">day streak</span>
+        </div>
       </div>
     </header>
 
-    <section class="progress-section">
+    <!-- Daily progress -->
+    <section class="progress-section" id="progress-section" aria-labelledby="progress-label">
       <div class="progress-top">
-        <span class="progress-label">Daily Completion</span>
+        <span class="progress-label" id="progress-label">Today's progress</span>
         <span class="progress-percent" id="progress-percent">0%</span>
       </div>
-      <div class="progress-track">
+      <div class="progress-track" id="progress-track" role="progressbar" aria-labelledby="progress-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div class="progress-fill" id="progress-fill"></div>
       </div>
       <div class="progress-bottom">
-        <span id="progress-count">0 OF 0 COMPLETED</span>
-        <span id="progress-message">ADD A HABIT</span>
+        <span id="progress-count">0 of 0 completed</span>
+        <span id="progress-message" aria-live="polite">Add a habit</span>
       </div>
     </section>
 
+    <!-- Section title + add button -->
     <section class="action-section">
-      <h2>Habit Sections</h2>
-      <button id="btn-add-habit" class="btn-primary">
-        <i data-lucide="plus"></i> New Habit
+      <h2>Your habits</h2>
+      <button id="btn-add-habit" class="btn-primary" type="button" aria-haspopup="dialog" aria-controls="add-panel">
+        <i data-lucide="plus"></i> New habit
       </button>
     </section>
 
-    <div id="add-panel" class="add-panel hidden">
-      <div class="form-group">
-        <label>Habit Name</label>
-        <input type="text" id="habit-name" placeholder="e.g. Read Physics">
-      </div>
-      
-      <div class="form-row">
-        <div class="form-group half">
-          <label>Time Window</label>
-          <div class="time-selector" id="time-selector">
-            <button class="time-btn active" data-time="morning">
-              <i data-lucide="sun"></i><br>MORNING
-            </button>
-            <button class="time-btn" data-time="afternoon">
-              <i data-lucide="cloud"></i><br>AFTERNOON
-            </button>
-            <button class="time-btn" data-time="evening">
-              <i data-lucide="moon"></i><br>EVENING
-            </button>
-          </div>
+    <!-- One-time discoverability hint for swipe -->
+    <div id="swipe-hint" class="swipe-hint hidden" role="note">
+      <span class="swipe-hint-icon"><i data-lucide="hand"></i></span>
+      <p><strong>Tip:</strong> tap the circle to complete a habit, or swipe the card right <span aria-hidden="true">→</span>. Press and hold for more options.</p>
+      <button id="btn-dismiss-hint" class="icon-button small" type="button" aria-label="Dismiss tip">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <div id="habits-container" class="habits-container">
+      <!-- Habit sections / empty state populated by JS -->
+    </div>
+
+    <!-- Heatmap -->
+    <section class="heatmap-section" id="heatmap-section" aria-labelledby="heatmap-title">
+      <div class="heatmap-header">
+        <div>
+          <h2 id="heatmap-title">Velocity Visualizer</h2>
+          <p class="heatmap-sub" id="hm-summary">Last 90 days</p>
         </div>
-        <div class="form-group half">
-          <label>Accent Color</label>
-          <div class="color-selector" id="color-selector">
-            <!-- Populated by JS -->
-          </div>
+        <div class="heatmap-legend" aria-hidden="true">
+          <span>Less</span>
+          <div class="l-0"></div><div class="l-1"></div><div class="l-2"></div><div class="l-3"></div><div class="l-4"></div>
+          <span>More</span>
+        </div>
+      </div>
+      <div id="heatmap-filter" class="heatmap-filter" role="group" aria-label="Show heatmap for">
+        <!-- Filter chips populated by JS -->
+      </div>
+      <div id="heatmap-grid" class="heatmap-grid" role="img" aria-label="Completion heatmap for the last 90 days">
+        <!-- Heatmap cells -->
+      </div>
+      <div class="heatmap-labels">
+        <span>90 days ago</span>
+        <span>Today</span>
+      </div>
+    </section>
+
+    <footer class="app-footer">Small steps, every day.</footer>
+  </div>
+
+  <!-- Add habit: bottom sheet on mobile, modal on desktop -->
+  <div id="add-panel" class="add-panel sheet hidden" aria-hidden="true">
+    <div class="sheet-backdrop" data-close-sheet></div>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <h2 id="add-title">New habit</h2>
+        <button id="btn-close-add" class="icon-button" type="button" aria-label="Close" data-close-sheet>
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="form-preview" id="form-preview" aria-hidden="true">
+        <div class="habit-icon" id="preview-icon"><i data-lucide="activity"></i></div>
+        <div class="preview-text">
+          <div class="preview-name" id="preview-name">Your new habit</div>
+          <div class="preview-meta" id="preview-meta">Morning</div>
         </div>
       </div>
 
       <div class="form-group">
-        <label>Icon Representation</label>
-        <div class="icon-selector" id="icon-selector">
+        <label for="habit-name">Habit name</label>
+        <input type="text" id="habit-name" placeholder="e.g. Read 10 pages" maxlength="60" autocomplete="off" aria-describedby="habit-name-error">
+        <p class="form-error hidden" id="habit-name-error">Give your habit a name first.</p>
+      </div>
+
+      <div class="form-group">
+        <span class="label" id="time-label">Time of day</span>
+        <div class="time-selector" id="time-selector" role="group" aria-labelledby="time-label">
+          <button class="time-btn active" type="button" data-time="morning" aria-pressed="true">
+            <i data-lucide="sun"></i><span>Morning</span>
+          </button>
+          <button class="time-btn" type="button" data-time="afternoon" aria-pressed="false">
+            <i data-lucide="cloud"></i><span>Afternoon</span>
+          </button>
+          <button class="time-btn" type="button" data-time="evening" aria-pressed="false">
+            <i data-lucide="moon"></i><span>Evening</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <span class="label" id="color-label">Accent color</span>
+        <div class="color-selector" id="color-selector" role="group" aria-labelledby="color-label">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="form-group">
+        <span class="label" id="icon-label">Icon</span>
+        <div class="icon-selector" id="icon-selector" role="group" aria-labelledby="icon-label">
           <!-- Populated by JS -->
         </div>
       </div>
 
       <div class="panel-actions">
-        <button id="btn-confirm-add" class="btn-primary" style="flex:1;">Confirm Entry</button>
-        <button id="btn-cancel-add" class="btn-cancel">Cancel</button>
+        <button id="btn-cancel-add" class="btn-cancel" type="button">Cancel</button>
+        <button id="btn-confirm-add" class="btn-primary" type="button">Add habit</button>
       </div>
     </div>
-
-    <div id="habits-container" class="habits-container">
-      <!-- Habit Sections Populated by JS -->
-    </div>
-
-    <section class="heatmap-section pt-12">
-      <div class="heatmap-header">
-        <h2>Velocity Visualizer</h2>
-        <div class="heatmap-legend">
-          <div class="l-0"></div><div class="l-1"></div><div class="l-2"></div><div class="l-3"></div><div class="l-4"></div>
-        </div>
-      </div>
-      <div id="heatmap-grid" class="heatmap-grid">
-        <!-- Heatmap cells -->
-      </div>
-      <div class="heatmap-labels">
-        <span>90 DAYS AGO</span>
-        <span>PEAK FLOW</span>
-        <span>TODAY</span>
-      </div>
-    </section>
   </div>
+
+  <!-- Habit options menu (long-press / "..." button) -->
+  <div id="habit-menu" class="sheet menu-sheet hidden" aria-hidden="true">
+    <div class="sheet-backdrop" data-close-sheet></div>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="menu-head">
+        <div class="habit-icon" id="menu-icon"></div>
+        <h2 id="menu-title">Habit</h2>
+      </div>
+      <div class="menu-list">
+        <button id="menu-toggle" class="menu-item" type="button">
+          <i data-lucide="check-circle-2"></i><span id="menu-toggle-label">Mark done today</span>
+        </button>
+        <button id="menu-delete" class="menu-item habit-delete" type="button">
+          <i data-lucide="trash-2"></i><span>Delete habit</span>
+        </button>
+        <button class="menu-item menu-cancel" type="button" data-close-sheet>
+          <span>Cancel</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Undo toast -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite">
+    <span id="toast-msg"></span>
+    <button id="toast-undo" class="toast-undo" type="button">Undo</button>
+  </div>
+
+  <!-- 100% celebration particles -->
+  <div id="celebration" class="celebration" aria-hidden="true"></div>
 
   <script src="./script.js" type="module"></script>
 </body>
