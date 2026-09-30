@@ -1220,3 +1220,126 @@ h1, h2, h3 { color: var(--text); }
   }
   .celebration { display: none; }
 }
+
+/* ==========================================================================
+   Motion upgrades
+   ========================================================================== */
+
+/* Theme toggle: moon and sun spin/cross-fade instead of swapping */
+#btn-theme { position: relative; }
+#btn-theme svg { position: absolute; transition: transform 600ms var(--ease-spring), opacity 300ms ease; }
+.theme-icon-moon, .theme-icon-sun { display: block !important; }
+.theme-icon-sun { opacity: 0; transform: rotate(-90deg) scale(0.3); }
+:root[data-theme="dark"] .theme-icon-sun { opacity: 1; transform: none; }
+:root[data-theme="dark"] .theme-icon-moon { opacity: 0; transform: rotate(90deg) scale(0.3); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-icon-sun { opacity: 1; transform: none; }
+  :root:not([data-theme="light"]) .theme-icon-moon { opacity: 0; transform: rotate(90deg) scale(0.3); }
+}
+/* Circular reveal (JS drives the clip-path) */
+.vt body { transition: none; }
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* Streak number rolls inside the pill */
+.streak-pill { overflow: hidden; }
+
+/* Card completion: colour washes out from the check circle */
+.habit-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--habit) 30%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+.habit-card.just-done { animation: card-tint var(--dur-slow) var(--ease-out); }
+.habit-card.just-done::before { animation: wash 900ms var(--ease-out); }
+.habit-card.just-done .habit-streak,
+.habit-card.just-undone .habit-streak { animation: fade-up var(--dur-slow) var(--ease-out) 120ms backwards; }
+.habit-card.just-undone .habit-check { animation: check-dip 360ms var(--ease-out); }
+.habit-card.just-added .habit-icon { animation: tile-in 560ms var(--ease-spring) 400ms backwards; }
+.habit-card.just-added::before { animation: wash 1100ms var(--ease-out) 350ms backwards; }
+@keyframes card-tint { from { background-color: var(--surface); border-color: var(--border); } }
+@keyframes wash {
+  0% { opacity: 1; clip-path: circle(0 at calc(100% - 32px) 50%); }
+  100% { opacity: 0; clip-path: circle(150% at calc(100% - 32px) 50%); }
+}
+@keyframes check-dip { 40% { transform: scale(0.86); } }
+@keyframes tile-in { from { transform: scale(0.6) rotate(-10deg); } }
+
+/* Empty state pieces arrive one by one */
+.empty-state > *, .starter-chip { animation: fade-up 500ms var(--ease-out) backwards; }
+.empty-state > .starter-list { animation: none; }
+.empty-state > :nth-child(2) { animation-delay: 60ms; }
+.empty-state > :nth-child(3) { animation-delay: 120ms; }
+.starter-chip:nth-child(1) { animation-delay: 180ms; }
+.starter-chip:nth-child(2) { animation-delay: 220ms; }
+.starter-chip:nth-child(3) { animation-delay: 260ms; }
+.starter-chip:nth-child(4) { animation-delay: 300ms; }
+.starter-chip:nth-child(5) { animation-delay: 340ms; }
+.empty-state > .btn-empty-add { animation-delay: 400ms; }
+
+/* Sheets: drag handle area */
+.sheet-handle, .sheet-head, .menu-head { touch-action: none; }
+@media (max-width: 639px) {
+  .sheet-handle, .sheet-head, .menu-head { cursor: grab; }
+}
+.menu-item:active { transform: scale(0.98); }
+.menu-item { transition: background-color var(--dur-fast), transform var(--dur-fast) var(--ease-out); }
+.btn-cancel { transition: background-color var(--dur-fast), transform var(--dur-fast) var(--ease-out); }
+.btn-cancel:active { transform: scale(0.96); }
+
+/* Form pickers */
+.time-btn, .icon-btn {
+  transition: background-color var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.time-btn:active, .icon-btn:active { transform: scale(0.95); }
+.time-btn svg { transition: color var(--dur); }
+.form-preview .habit-icon { transition: background-color var(--dur), color var(--dur); }
+.form-group input { transition: border-color var(--dur-fast), box-shadow var(--dur) var(--ease-out); }
+.color-btn { transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur) var(--ease-out); }
+.color-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transform: scale(0);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.color-btn.active::after { transform: scale(1); }
+
+/* Toast undo countdown */
+.toast-bar {
+  position: absolute;
+  left: var(--s-5);
+  right: var(--s-5);
+  bottom: 5px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--bg);
+  opacity: 0.3;
+  transform-origin: left center;
+  pointer-events: none;
+}
+.toast.no-undo .toast-bar { display: none; }
+
+/* Heatmap: colour changes ripple diagonally (--d is set per cell) */
+.hm-cell {
+  transition: transform var(--dur-fast) var(--ease-out) 0ms, background-color 450ms var(--ease-out) var(--d, 0ms);
+}
+.heatmap-legend div { transition: background-color 450ms var(--ease-out); }
+.hm-chip {
+  transition: background-color var(--dur), border-color var(--dur), color var(--dur), transform var(--dur-fast) var(--ease-out);
+}
+.hm-chip:active { transform: scale(0.95); }
+.hm-chip.active::before { transform: scale(1.3); }
+.hm-chip::before { transition: transform var(--dur-slow) var(--ease-spring); }
