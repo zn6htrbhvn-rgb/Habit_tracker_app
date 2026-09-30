@@ -70,6 +70,7 @@ function init() {
   setupUI();
   render();
   maybeShowSwipeHint();
+  playIntro();
   setTimeout(refreshIcons, 50);
 }
 
@@ -87,9 +88,24 @@ function effectiveTheme() {
 
 function toggleTheme() {
   const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  storageSet(THEME_KEY, next);
-  updateThemeButton();
+  const apply = () => {
+    document.documentElement.setAttribute('data-theme', next);
+    storageSet(THEME_KEY, next);
+    updateThemeButton();
+  };
+  if (!document.startViewTransition || reducedMotion()) { apply(); return; }
+  // Circular reveal growing out of the toggle button.
+  const r = $('btn-theme').getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const root = document.documentElement;
+  root.classList.add('vt');
+  const vt = document.startViewTransition(apply);
+  vt.ready.then(() => {
+    root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+      { duration: 700, easing: EASE, pseudoElement: '::view-transition-new(root)' });
+  }).catch(() => {});
+  vt.finished.finally(() => root.classList.remove('vt'));
 }
 
 function updateThemeButton() {
@@ -121,6 +137,8 @@ function setupUI() {
     btn.addEventListener('click', () => {
       formState.time = btn.dataset.time;
       syncFormSelection();
+      pop(btn.querySelector('svg'), 1.3);
+      fadeUp($('preview-meta'), 4, { duration: 300 });
     });
   });
 
@@ -133,12 +151,13 @@ function setupUI() {
   $('menu-toggle').addEventListener('click', () => {
     const id = menuHabitId;
     closeSheet($('habit-menu'), false);
-    if (id) toggleHabit(id);
+    // Let the sheet start sliding away before the card reacts.
+    if (id) setTimeout(() => toggleHabit(id), reducedMotion() ? 0 : 220);
   });
   $('menu-delete').addEventListener('click', () => {
     const id = menuHabitId;
     closeSheet($('habit-menu'), false);
-    if (id) deleteHabit(id);
+    if (id) setTimeout(() => deleteHabit(id), reducedMotion() ? 0 : 220);
   });
 
   $('toast-undo').addEventListener('click', () => {
@@ -147,6 +166,7 @@ function setupUI() {
   });
 
   $('btn-dismiss-hint').addEventListener('click', dismissSwipeHint);
+  document.querySelectorAll('.sheet').forEach(enableSheetDrag);
 
   // Event delegation for habit cards (survives re-renders, no listener leaks).
   const container = $('habits-container');
@@ -164,6 +184,8 @@ function setupUI() {
     if (!chip) return;
     heatmapFilter = chip.dataset.habit;
     renderHeatmap();
+    pop($('heatmap-filter').querySelector('.hm-chip.active'), 1.06, 350);
+    fadeUp($('hm-summary'), 4, { duration: 300 });
   });
 }
 
@@ -248,8 +270,12 @@ function onPointerMove(e) {
   // Rubber-band past the threshold so it feels physical.
   const shown = g.dx > SWIPE_THRESHOLD ? SWIPE_THRESHOLD + (g.dx - SWIPE_THRESHOLD) * 0.35 : g.dx;
   g.card.style.transform = `translateX(${shown}px)`;
-  g.bg.style.opacity = Math.min(g.dx / SWIPE_THRESHOLD, 1);
+  const p = Math.min(g.dx / SWIPE_THRESHOLD, 1);
+  g.bg.style.opacity = p;
   const armed = g.dx > SWIPE_THRESHOLD;
+  // The check icon behind the card grows and untwists as you drag.
+  const bgIcon = g.bg.querySelector('svg');
+  if (bgIcon) bgIcon.style.transform = armed ? '' : `scale(${0.6 + 0.4 * p}) rotate(${(1 - p) * -40}deg)`;
   if (armed !== g.wrap.classList.contains('armed')) {
     g.wrap.classList.toggle('armed', armed);
     if (armed && navigator.vibrate) navigator.vibrate(8);
@@ -268,6 +294,8 @@ function onPointerEnd(e) {
     bg.style.transition = '';
     card.style.transform = 'translateX(0)';
     bg.style.opacity = '0';
+    const bgIcon = bg.querySelector('svg');
+    if (bgIcon) bgIcon.style.transform = '';
     wrap.classList.remove('swiping', 'armed');
     if (complete) setTimeout(() => toggleHabit(card.dataset.id), reducedMotion() ? 0 : 160);
   } else if (g.done) {
@@ -300,6 +328,7 @@ function openSheet(sheet, returnFocus, focusEl) {
   sheet.classList.remove('hidden');
   sheet.setAttribute('aria-hidden', 'false');
   document.body.classList.add('sheet-open');
+  staggerSheet(sheet);
   const target = focusEl || sheet.querySelector('button, input');
   // Wait a frame so the slide-in isn't interrupted by focus scrolling.
   requestAnimationFrame(() => target && target.focus({ preventScroll: true }));
@@ -343,6 +372,7 @@ function renderFormSelectors() {
     cSel.querySelectorAll('.color-btn').forEach(btn => btn.onclick = () => {
       formState.color = btn.dataset.color;
       syncFormSelection();
+      pop($('preview-icon'), 1.08);
     });
 
     const iSel = $('icon-selector');
@@ -350,6 +380,8 @@ function renderFormSelectors() {
     iSel.querySelectorAll('.icon-btn').forEach(btn => btn.onclick = () => {
       formState.icon = btn.dataset.icon;
       syncFormSelection();
+      pop(btn, 1.12);
+      anim($('preview-icon').firstElementChild, [{ opacity: 0, transform: 'scale(0.4) rotate(-20deg)' }, { opacity: 1, transform: 'none' }], { easing: SPRING });
     });
     selectorsBuilt = true;
     refreshIcons();
@@ -405,6 +437,7 @@ function addHabit() {
     setNameError(false);
     void nameInput.offsetWidth;
     setNameError(true);
+    fadeUp($('habit-name-error'), -4, { duration: 250 });
     nameInput.focus();
     return;
   }
@@ -417,7 +450,7 @@ function createHabit({ name, iconName, color, timeOfDay }) {
   const habit = { id: uid(), name, iconName, color, timeOfDay, history: {} };
   habits.push(habit);
   save();
-  render();
+  render({ justAdded: habit.id });
   showToast(`Added “${name}”`);
 }
 
@@ -435,6 +468,13 @@ function toggleHabit(id) {
 }
 
 function deleteHabit(id) {
+  if (!habits.some(h => h.id === id)) return;
+  // Slide the card out and close the gap first, then remove it from the data.
+  const card = document.querySelector(`.habit-card[data-id="${CSS.escape(id)}"]`);
+  collapseOut(card && card.parentElement, () => commitDelete(id), { slide: true });
+}
+
+function commitDelete(id) {
   const index = habits.findIndex(h => h.id === id);
   if (index === -1) return;
   const [removed] = habits.splice(index, 1);
@@ -444,7 +484,7 @@ function deleteHabit(id) {
   showToast(`Deleted “${removed.name}”`, () => {
     habits.splice(Math.min(index, habits.length), 0, removed);
     save();
-    render();
+    render({ justAdded: removed.id });
   });
 }
 
@@ -467,10 +507,18 @@ function openMenu(id, trigger) {
 function showToast(message, onUndo) {
   clearTimeout(toastTimer);
   const toast = $('toast');
+  const wasShown = !toast.classList.contains('hidden');
   $('toast-msg').textContent = message;
   undoAction = onUndo || null;
   toast.classList.toggle('no-undo', !onUndo);
   toast.classList.remove('hidden');
+  // A toast replacing another one gives a small bump instead of popping in again.
+  if (wasShown) anim(toast, [{ transform: 'translate(-50%, 0) scale(1)' }, { transform: 'translate(-50%, 0) scale(1.05)', offset: 0.4 }, { transform: 'translate(-50%, 0) scale(1)' }], { fill: 'none' });
+  // Thin countdown bar showing how long Undo stays available.
+  let bar = toast.querySelector('.toast-bar');
+  if (!bar) { bar = document.createElement('span'); bar.className = 'toast-bar'; bar.setAttribute('aria-hidden', 'true'); toast.appendChild(bar); }
+  bar.getAnimations?.().forEach(a => a.cancel());
+  if (onUndo && bar.animate && !reducedMotion()) bar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: 6000, easing: 'linear', fill: 'forwards' });
   toastTimer = setTimeout(hideToast, onUndo ? 6000 : 2500);
 }
 
@@ -495,7 +543,8 @@ function maybeShowSwipeHint() {
 
 function dismissSwipeHint() {
   storageSet(HINT_KEY, '1');
-  $('swipe-hint').classList.add('hidden');
+  const hint = $('swipe-hint');
+  collapseOut(hint, () => hint.classList.add('hidden'));
 }
 
 /* ---------------------------------------------------------------- Streaks */
@@ -512,7 +561,7 @@ function countStreak(isDone) {
 
 /* ----------------------------------------------------------------- Render */
 
-function render({ justToggled } = {}) {
+function render({ justToggled, justAdded } = {}) {
   const today = getTodayKey();
   const doneToday = habits.filter(h => h.history[today]).length;
   const total = habits.length;
@@ -524,7 +573,9 @@ function render({ justToggled } = {}) {
   $('streak-pill').classList.toggle('is-active', globalStreak > 0);
   $('streak-pill').title = `${globalStreak}-day streak with every habit done`;
 
-  $('progress-percent').textContent = `${percent}%`;
+  // Count the number up/down instead of jumping.
+  if (prevRender) tweenPercent(percent);
+  else { shownPercent = percent; $('progress-percent').textContent = `${percent}%`; }
   $('progress-fill').style.width = `${percent}%`;
   $('progress-track').setAttribute('aria-valuenow', percent);
   $('progress-count').textContent = `${doneToday} of ${total} completed`;
@@ -544,11 +595,16 @@ function render({ justToggled } = {}) {
 
   if (justToggled) {
     const card = document.querySelector(`.habit-card[data-id="${CSS.escape(justToggled)}"]`);
-    if (card && card.classList.contains('done')) {
-      card.classList.add('just-done');
-      if (navigator.vibrate) navigator.vibrate(10);
+    if (card) {
+      const done = card.classList.contains('done');
+      card.classList.add(done ? 'just-done' : 'just-undone');
+      if (done && navigator.vibrate) navigator.vibrate(10);
     }
   }
+
+  const snap = { percent, streak: globalStreak, msg: $('progress-message').textContent, counts: sectionCounts() };
+  if (prevRender) animateChanges(prevRender, snap, { justAdded });
+  prevRender = snap;
 }
 
 function renderHabits(today) {
@@ -629,15 +685,17 @@ function renderHeatmap() {
   // Filter chips
   const filter = $('heatmap-filter');
   filter.hidden = habits.length < 2;
+  const chipScroll = filter.scrollLeft;
   filter.innerHTML = [
     `<button type="button" class="hm-chip ${heatmapFilter === 'all' ? 'active' : ''}" data-habit="all" aria-pressed="${heatmapFilter === 'all'}">All habits</button>`,
     ...habits.map(h => `<button type="button" class="hm-chip ${heatmapFilter === h.id ? 'active' : ''}" data-habit="${esc(h.id)}" style="--habit:${h.color}" aria-pressed="${heatmapFilter === h.id}">${esc(h.name)}</button>`)
   ].join('');
+  filter.scrollLeft = chipScroll;
 
   $('heatmap-section').style.setProperty('--hm-color', selected ? selected.color : 'var(--accent)');
 
   const hmGrid = $('heatmap-grid');
-  let hmHTML = '';
+  const cellData = [];
   let activeDays = 0;
   const hd = new Date();
   for (let i = 90; i >= 0; i--) {
@@ -652,9 +710,14 @@ function renderHeatmap() {
     }
     const label = td.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const tip = selected ? `${label}: ${c ? 'done' : 'not done'}` : `${label}: ${c} of ${total} habits`;
-    hmHTML += `<div class="hm-cell l-${l}${i === 0 ? ' today' : ''}" title="${esc(tip)}"></div>`;
+    cellData.push({ cls: `hm-cell l-${l}${i === 0 ? ' today' : ''}`, tip });
   }
-  hmGrid.innerHTML = hmHTML;
+  // Update cells in place so color changes transition (as a diagonal wave, via --d).
+  if (hmGrid.children.length === cellData.length) {
+    cellData.forEach((c, i) => { const el = hmGrid.children[i]; el.className = c.cls; el.title = c.tip; });
+  } else {
+    hmGrid.innerHTML = cellData.map((c, i) => `<div class="${c.cls}" title="${esc(c.tip)}" style="--d:${((i % 13) + Math.floor(i / 13)) * 18}ms"></div>`).join('');
+  }
 
   const who = selected ? esc(selected.name) : 'all habits';
   $('hm-summary').innerHTML = `${activeDays} active ${activeDays === 1 ? 'day' : 'days'} · ${who}`;
@@ -695,6 +758,152 @@ function celebrate() {
   }
   layer.appendChild(frag);
   setTimeout(() => { layer.innerHTML = ''; }, 2400);
+}
+
+/* ----------------------------------------------------------------- Motion */
+
+const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+let shownPercent = 0;
+let percentRaf = 0;
+let prevRender = null;
+
+function anim(el, keyframes, opts = {}) {
+  if (!el || !el.animate || reducedMotion()) return null;
+  return el.animate(keyframes, { duration: 450, easing: EASE, fill: 'backwards', ...opts });
+}
+function pop(el, scale = 1.15, duration = 480) {
+  return anim(el, [{ transform: 'scale(1)' }, { transform: `scale(${scale})`, offset: 0.4 }, { transform: 'scale(1)' }], { duration, fill: 'none' });
+}
+function fadeUp(el, y = 6, opts = {}) {
+  return anim(el, [{ opacity: 0, transform: `translateY(${y}px)` }, { opacity: 1, transform: 'none' }], opts);
+}
+
+function tweenPercent(to, delay = 0, duration = 900) {
+  cancelAnimationFrame(percentRaf);
+  const el = $('progress-percent');
+  const from = shownPercent;
+  if (reducedMotion() || from === to) { shownPercent = to; el.textContent = `${to}%`; return; }
+  const start = performance.now() + delay;
+  const step = now => {
+    const t = Math.min(1, Math.max(0, (now - start) / duration));
+    shownPercent = Math.round(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+    el.textContent = `${shownPercent}%`;
+    if (t < 1) percentRaf = requestAnimationFrame(step);
+  };
+  percentRaf = requestAnimationFrame(step);
+}
+
+// Page load: everything rises in one after another, the heatmap fills in
+// diagonally and the progress bar + percentage count up from zero.
+function playIntro() {
+  if (reducedMotion()) return;
+  const els = [...document.querySelectorAll('.header-titles, .header-actions, .progress-section, .action-section, .swipe-hint:not(.hidden), .time-header, .habit-card-wrapper, .empty-state, .heatmap-section, .app-footer')];
+  els.forEach((el, i) => anim(el, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 670, delay: i * 70 }));
+  const hmDelay = Math.max(0, els.length * 70 - 100);
+  document.querySelectorAll('.hm-cell').forEach((c, i) => anim(c, [{ opacity: 0, transform: 'scale(0.3)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay: hmDelay + ((i % 13) + Math.floor(i / 13)) * 20, easing: SPRING }));
+  const fill = $('progress-fill');
+  anim(fill, [{ width: '0%' }, { width: fill.style.width || '0%' }], { duration: 1200, delay: 430, easing: SPRING });
+  shownPercent = 0;
+  tweenPercent(lastPercent || 0, 430, 1100);
+}
+
+function sectionCounts() {
+  const out = {};
+  document.querySelectorAll('.time-section').forEach(s => { out[s.getAttribute('aria-label')] = s.querySelector('.time-count').textContent; });
+  return out;
+}
+
+// Small reactions to whatever changed in the last render.
+function animateChanges(a, b, { justAdded } = {}) {
+  if (a.msg !== b.msg) fadeUp($('progress-message'));
+  if (a.streak !== b.streak) {
+    const up = b.streak > a.streak;
+    anim($('global-streak'), [{ opacity: 0, transform: `translateY(${up ? 70 : -70}%)` }, { opacity: 1, transform: 'none' }], { duration: 520, easing: SPRING });
+    pop($('streak-pill').querySelector('.icon-flame'), up ? 1.45 : 0.8, 600);
+  }
+  document.querySelectorAll('.time-section').forEach(sec => {
+    const slot = sec.getAttribute('aria-label');
+    if (a.counts[slot] !== undefined && a.counts[slot] !== b.counts[slot]) pop(sec.querySelector('.time-count'), 1.3);
+  });
+  if (justAdded) {
+    const card = document.querySelector(`.habit-card[data-id="${CSS.escape(justAdded)}"]`);
+    if (card) growIn(card.parentElement);
+  }
+}
+
+// Height/margin keyframes that open or close an element's slot in a flex column (incl. its gap).
+function sizeFrames(el) {
+  const gap = parseFloat(getComputedStyle(el.parentElement).rowGap) || 0;
+  const side = el.nextElementSibling ? 'marginBottom' : 'marginTop';
+  const hasSibling = el.nextElementSibling || el.previousElementSibling;
+  const s = getComputedStyle(el);
+  return {
+    open: { height: el.offsetHeight + 'px', paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, [side]: '0px' },
+    closed: { height: '0px', paddingTop: '0px', paddingBottom: '0px', [side]: hasSibling ? `-${gap}px` : '0px' }
+  };
+}
+// A card that's alone in its section takes the whole section with it.
+const slotTarget = el => (el.classList.contains('habit-card-wrapper') && el.parentElement.children.length === 1 && el.closest('.time-section')) || el;
+
+function growIn(el) {
+  if (!el || reducedMotion()) return;
+  const t = slotTarget(el);
+  const f = sizeFrames(t);
+  t.style.overflow = 'hidden';
+  const a = t.animate([
+    { opacity: 0, transform: 'scale(0.96)', ...f.closed },
+    { opacity: 0, transform: 'scale(0.96)', ...f.open, offset: 0.45 },
+    { opacity: 1, transform: 'none', ...f.open }
+  ], { duration: 850, easing: EASE });
+  a.onfinish = a.oncancel = () => { t.style.overflow = ''; };
+  const card = el.querySelector('.habit-card');
+  if (card) card.classList.add('just-added');
+}
+
+function collapseOut(el, done, { slide = false } = {}) {
+  if (!el || !el.animate || reducedMotion()) { done(); return; }
+  const t = slotTarget(el);
+  const f = sizeFrames(t);
+  const away = slide ? 'translateX(28px) scale(0.97)' : 'scale(0.97)';
+  t.style.overflow = 'hidden';
+  const a = t.animate([
+    { opacity: 1, transform: 'none', ...f.open },
+    { opacity: 0, transform: away, ...f.open, offset: 0.45 },
+    { opacity: 0, transform: away, ...f.closed }
+  ], { duration: 650, easing: EASE, fill: 'forwards' });
+  a.onfinish = () => { done(); a.cancel(); t.style.overflow = ''; };
+}
+
+// Sheet contents drift up one after another as the sheet opens.
+function staggerSheet(sheet) {
+  [...sheet.querySelectorAll('.form-preview, .form-group, .menu-item, .panel-actions')].forEach((el, i) =>
+    anim(el, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: 120 + i * 45 }));
+}
+
+// Drag the handle/header down to dismiss (phone layout only).
+function enableSheetDrag(sheet) {
+  const card = sheet.querySelector('.sheet-card');
+  sheet.querySelectorAll('.sheet-handle, .sheet-head, .menu-head').forEach(zone => {
+    zone.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || e.target.closest('button') || window.innerWidth >= 640) return;
+      const startY = e.clientY;
+      let dy = 0;
+      card.style.transition = 'none';
+      const move = ev => { dy = ev.clientY - startY; card.style.transform = `translateY(${dy > 0 ? dy : dy * 0.2}px)`; };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        card.style.transition = '';
+        card.style.transform = '';
+        if (dy > 90) closeSheet(sheet);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    });
+  });
 }
 
 // Kept for backwards compatibility with anything that still calls it.
