@@ -15,6 +15,16 @@ Requirements: **Xcode 16 or newer**, iOS/iPadOS **17.0+**.
 
 Press **⌘U** to run the unit tests (streaks, progress math, heatmap levels, undo, web-data compatibility).
 
+### Swift Playgrounds on iPad
+
+Playgrounds can't open `.xcodeproj`, so `ios/ZenHabit.swiftpm` is the same app packaged as an App Playground.
+
+1. Download this repo as a ZIP from GitHub (Code → Download ZIP) and unzip it in the Files app.
+2. Open `ios/ZenHabit.swiftpm` (tap it, or open it from inside Swift Playgrounds 4.4+).
+3. Tap **▶** to run. Needs iPadOS 17+.
+
+Keep `ZenHabit.swiftpm` and `ZenHabit/` in sync if you edit either one.
+
 ## What's in it
 
 | Web app | iOS app |
